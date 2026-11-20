@@ -1,0 +1,122 @@
+@prefix : <http://example.org/smartbuilding#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<http://example.org/smartbuilding> a owl:Ontology ;
+  rdfs:comment "AI-based smart building ontology for OCOM5201M assessment. Clean version." .
+
+### Classes
+:SpatialRegion a owl:Class .
+:Building a owl:Class ; rdfs:subClassOf :SpatialRegion .
+:Zone a owl:Class ; rdfs:subClassOf :SpatialRegion .
+:Room a owl:Class ; rdfs:subClassOf :SpatialRegion .
+:HighRiskRoom a owl:Class ; rdfs:subClassOf :Room .
+:FireProtectedRoom a owl:Class ; rdfs:subClassOf :Room .
+:OccupiedRoom a owl:Class ; rdfs:subClassOf :Room .
+:SecureAccessRoom a owl:Class ; rdfs:subClassOf :Room .
+:EnergyManagedRoom a owl:Class ; rdfs:subClassOf :Room .
+:Kitchen a owl:Class ; rdfs:subClassOf :HighRiskRoom .
+:ServerRoom a owl:Class ; rdfs:subClassOf :HighRiskRoom .
+:Office a owl:Class ; rdfs:subClassOf :Room .
+:MeetingRoom a owl:Class ; rdfs:subClassOf :Room .
+:Lobby a owl:Class ; rdfs:subClassOf :Room .
+:Corridor a owl:Class ; rdfs:subClassOf :Room .
+:Device a owl:Class .
+:Sensor a owl:Class ; rdfs:subClassOf :Device .
+:SmokeSensor a owl:Class ; rdfs:subClassOf :Sensor .
+:MotionSensor a owl:Class ; rdfs:subClassOf :Sensor .
+:TemperatureSensor a owl:Class ; rdfs:subClassOf :Sensor .
+:Actuator a owl:Class ; rdfs:subClassOf :Device .
+:Alarm a owl:Class ; rdfs:subClassOf :Actuator .
+:HVACUnit a owl:Class ; rdfs:subClassOf :Actuator .
+:SmartLock a owl:Class ; rdfs:subClassOf :Actuator .
+:Controller a owl:Class ; rdfs:subClassOf :Device .
+:Person a owl:Class .
+:Occupant a owl:Class ; rdfs:subClassOf :Person .
+:StaffMember a owl:Class ; rdfs:subClassOf :Person .
+:Visitor a owl:Class ; rdfs:subClassOf :Person .
+
+### Disjointness
+:Sensor owl:disjointWith :Actuator .
+:Person owl:disjointWith :Device .
+:Kitchen owl:disjointWith :ServerRoom .
+
+### Object properties
+:adjacentTo a owl:ObjectProperty, owl:SymmetricProperty ;
+  rdfs:domain :Room ; rdfs:range :Room ;
+  rdfs:comment "Physical adjacency by door/corridor; symmetric because if A is next to B, B is next to A." .
+
+:containsSpace a owl:ObjectProperty, owl:TransitiveProperty ;
+  rdfs:domain :SpatialRegion ; rdfs:range :SpatialRegion ;
+  rdfs:comment "Spatial containment from building to zone to rooms; transitive for nested regions." .
+
+:locatedInZone a owl:ObjectProperty, owl:FunctionalProperty ;
+  rdfs:domain :Room ; rdfs:range :Zone ;
+  rdfs:comment "Each room is assigned to one operational zone in this design." .
+
+:hasDevice a owl:ObjectProperty ; rdfs:domain :Room ; rdfs:range :Device .
+:hasSensor a owl:ObjectProperty ; rdfs:subPropertyOf :hasDevice ; rdfs:domain :Room ; rdfs:range :Sensor .
+:hasOccupant a owl:ObjectProperty ; rdfs:domain :Room ; rdfs:range :Person .
+:hasAuthorizedPerson a owl:ObjectProperty ; rdfs:domain :Room ; rdfs:range :StaffMember .
+:controlledBy a owl:ObjectProperty, owl:FunctionalProperty ;
+  rdfs:domain :Device ; rdfs:range :Controller ;
+  rdfs:comment "A physical device is controlled by one central controller in this simplified system." .
+
+### DL class axioms
+:OccupiedRoom owl:equivalentClass [
+  a owl:Class ;
+  owl:intersectionOf ( :Room [ a owl:Restriction ; owl:onProperty :hasOccupant ; owl:someValuesFrom :Person ] )
+] .
+
+:FireProtectedRoom owl:equivalentClass [
+  a owl:Class ;
+  owl:intersectionOf ( :HighRiskRoom
+    [ a owl:Restriction ; owl:onProperty :hasSensor ; owl:someValuesFrom :SmokeSensor ]
+    [ a owl:Restriction ; owl:onProperty :hasDevice ; owl:someValuesFrom :Alarm ] )
+] .
+
+:SecureAccessRoom owl:equivalentClass [
+  a owl:Class ;
+  owl:intersectionOf ( :Room
+    [ a owl:Restriction ; owl:onProperty :hasDevice ; owl:someValuesFrom :SmartLock ]
+    [ a owl:Restriction ; owl:onProperty :hasAuthorizedPerson ;
+      owl:minQualifiedCardinality "2"^^xsd:nonNegativeInteger ; owl:onClass :StaffMember ] )
+] .
+
+:EnergyManagedRoom owl:equivalentClass [
+  a owl:Class ;
+  owl:intersectionOf ( :Room
+    [ a owl:Restriction ; owl:onProperty :hasSensor ; owl:someValuesFrom :MotionSensor ]
+    [ a owl:Restriction ; owl:onProperty :hasDevice ; owl:someValuesFrom :HVACUnit ] )
+] .
+
+### Individuals: building and rooms
+:MainBuilding a :Building ; :containsSpace :GroundFloorZone .
+:GroundFloorZone a :Zone ; :containsSpace :Lobby_001, :Corridor_001, :Kitchen_101, :ServerRoom_102, :Office_201, :MeetingRoom_202 .
+
+:Lobby_001 a :Lobby ; :locatedInZone :GroundFloorZone ; :adjacentTo :Corridor_001 ; :hasDevice :LobbyAlarm .
+:Corridor_001 a :Corridor ; :locatedInZone :GroundFloorZone ; :adjacentTo :Kitchen_101, :ServerRoom_102, :Office_201, :MeetingRoom_202 ; :hasDevice :CorridorAlarm .
+:Kitchen_101 a :Kitchen ; :locatedInZone :GroundFloorZone ; :hasSensor :KitchenSmokeSensor ; :hasDevice :KitchenAlarm ; :hasOccupant :Visitor_1 .
+:ServerRoom_102 a :ServerRoom ; :locatedInZone :GroundFloorZone ; :hasSensor :ServerSmokeSensor ; :hasDevice :ServerAlarm, :ServerSmartLock ; :hasAuthorizedPerson :Nora, :Omar .
+:Office_201 a :Office ; :locatedInZone :GroundFloorZone ; :adjacentTo :MeetingRoom_202 ; :hasSensor :OfficeMotionSensor ; :hasDevice :OfficeHVAC ; :hasOccupant :Employee_1 .
+:MeetingRoom_202 a :MeetingRoom ; :locatedInZone :GroundFloorZone ; :hasSensor :MeetingTemperatureSensor .
+
+### Individuals: devices and people
+:KitchenSmokeSensor a :SmokeSensor ; :controlledBy :CentralController .
+:ServerSmokeSensor a :SmokeSensor ; :controlledBy :CentralController .
+:OfficeMotionSensor a :MotionSensor ; :controlledBy :CentralController .
+:MeetingTemperatureSensor a :TemperatureSensor ; :controlledBy :CentralController .
+:KitchenAlarm a :Alarm ; :controlledBy :CentralController .
+:ServerAlarm a :Alarm ; :controlledBy :CentralController .
+:LobbyAlarm a :Alarm ; :controlledBy :CentralController .
+:CorridorAlarm a :Alarm ; :controlledBy :CentralController .
+:ServerSmartLock a :SmartLock ; :controlledBy :CentralController .
+:OfficeHVAC a :HVACUnit ; :controlledBy :CentralController .
+:CentralController a :Controller .
+:Employee_1 a :Occupant .
+:Visitor_1 a :Visitor .
+:Nora a :StaffMember .
+:Omar a :StaffMember .
+:Nora owl:differentFrom :Omar .
